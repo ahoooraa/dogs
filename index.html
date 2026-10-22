@@ -8,7 +8,7 @@
 <head>
   <title>دنیای سگ‌ها | معرفی نژادها و نگهداری سگ</title>
 
-<meta name="description" content="با نژادهای مختلف سگ، روش‌های نگهداری، تغذیه، تربیت و مراقبت از سگ‌ها آشنا شوید.">
+<meta name="description" content=" وبا نژادهای مختلف سگ، روش‌های نگهداری، تغذیه، تربیت و مراقبت از سگ‌ها آشنا شوید و لطفا بازی زیرو بازی نمایید.">
 
 <meta name="robots" content="index, follow">
 
@@ -296,14 +296,14 @@
     form.addEventListener("submit", (event) => {
       event.preventDefault();
 
-      const dog = {       document.getElementById("description").value.trim()
-  
+      const dog = {
         name: document.getElementById("name").value.trim(),
         breed: document.getElementById("breed").value.trim(),
         age: document.getElementById("age").value,
         gender: document.getElementById("gender").value,
         description:
-       };
+          document.getElementById("description").value.trim()
+      };
 
       dogs.push(dog);
       saveDogs();
