@@ -1,0 +1,395 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#fff3df">
+
+<title>بازی سگ کوچولو | دنیای سگ با کمک</title>
+<meta name="description" content="یک بازی سرگرم‌کننده درباره سگ‌ها؛ استخوان جمع کن، از موانع دوری کن و رکورد بزن!">
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Tahoma, Arial, sans-serif;
+  background: #fff5e6;
+  color: #58351e;
+  text-align: center;
+}
+
+header {
+  background: #a96535;
+  color: white;
+  padding: 20px 10px;
+}
+
+header h1 { margin: 0 0 8px; }
+
+.back {
+  display: inline-block;
+  margin: 16px;
+  color: #754323;
+  font-weight: bold;
+}
+
+.game {
+  width: min(94%, 440px);
+  margin: 0 auto 30px;
+  padding: 14px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 5px 20px #75432320;
+}
+
+.stats {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 3px solid #d5b48d;
+  border-radius: 14px;
+  background: #dff5cf;
+  touch-action: none;
+}
+
+#message {
+  min-height: 48px;
+  padding: 10px 0 0;
+  line-height: 1.9;
+}
+
+button {
+  font: inherit;
+  font-weight: bold;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 18px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.start {
+  background: #a96535;
+  color: white;
+  width: 100%;
+}
+
+.controls {
+  display: flex;
+  direction: ltr;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 14px;
+}
+
+.move {
+  background: #ffe1b5;
+  color: #58351e;
+  width: 90px;
+  height: 58px;
+  font-size: 25px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.help {
+  font-size: 13px;
+  line-height: 2;
+  color: #755a45;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>🐶 دنیای سگ با کمک</h1>
+  <p>🎮 بازی سگ کوچولو و استخوان‌ها</p>
+</header>
+
+<a class="back" href="./">🏠 برگشت به صفحه اصلی</a>
+
+<div class="game">
+  <div class="stats">
+    <span>🦴 امتیاز: <b id="score">0</b></span>
+    <span>❤️ جان: <b id="lives">3</b></span>
+    <span>🏆 رکورد: <b id="best">0</b></span>
+  </div>
+
+  <canvas id="game" width="360" height="500"
+          aria-label="بازی سگ کوچولو"></canvas>
+
+  <p id="message">آماده‌ای؟ استخوان‌ها رو جمع کن! 🐕</p>
+
+  <button class="start" id="start">شروع بازی 🐾</button>
+
+  <div class="controls">
+    <button class="move" id="left" aria-label="حرکت به چپ">⬅️</button>
+    <button class="move" id="right" aria-label="حرکت به راست">➡️</button>
+  </div>
+
+  <p class="help">
+    کامپیوتر: کلیدهای ← و → یا A و D<br>
+    موبایل: دکمه‌های جهت‌دار رو نگه دار.
+    <br>🦴 استخوان بگیر و از 💣 دوری کن!
+  </p>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const scoreEl = document.getElementById("score");
+const livesEl = document.getElementById("lives");
+const bestEl = document.getElementById("best");
+const message = document.getElementById("message");
+const startBtn = document.getElementById("start");
+
+const W = canvas.width;
+const H = canvas.height;
+
+let dog, items, score, lives, running;
+let lastTime = 0;
+let spawnTimer = 0;
+let elapsed = 0;
+let animationId = 0;
+
+const keys = { left: false, right: false };
+
+let best = 0;
+try {
+  best = Number(localStorage.getItem("dogGameBest")) || 0;
+} catch {}
+bestEl.textContent = best;
+
+function reset() {
+  dog = { x: W / 2, y: H - 65, size: 43, speed: 260 };
+  items = [];
+  score = 0;
+  lives = 3;
+  spawnTimer = 0;
+  elapsed = 0;
+  lastTime = 0;
+
+  scoreEl.textContent = score;
+  livesEl.textContent = lives;
+}
+
+function drawBackground() {
+  ctx.fillStyle = "#dff5cf";
+  ctx.fillRect(0, 0, W, H);
+
+  // چمن‌های تزئینی
+  ctx.fillStyle = "#c1e6a7";
+  for (let i = 0; i < 18; i++) {
+    const x = (i * 83 + 20) % W;
+    const y = (i * 113 + 30) % H;
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "#a9d48c";
+  ctx.fillRect(0, H - 16, W, 16);
+}
+
+function drawDog() {
+  ctx.font = "43px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("🐶", dog.x, dog.y);
+}
+
+function drawItems() {
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  for (const item of items) {
+    ctx.font = "30px sans-serif";
+    ctx.fillText(item.type === "bone" ? "🦴" : "💣",
+                 item.x, item.y);
+  }
+}
+
+function drawScene() {
+  drawBackground();
+  drawItems();
+  if (dog) drawDog();
+}
+
+function spawnItem() {
+  items.push({
+    x: 24 + Math.random() * (W - 48),
+    y: -25,
+    type: Math.random() < 0.73 ? "bone" : "bomb",
+    speed: 145 + Math.random() * 65 + Math.min(score, 300) * 0.45
+  });
+}
+
+function update(dt) {
+  elapsed += dt;
+
+  if (keys.left) dog.x -= dog.speed * dt;
+  if (keys.right) dog.x += dog.speed * dt;
+
+  dog.x = Math.max(25, Math.min(W - 25, dog.x));
+
+  spawnTimer += dt;
+  const spawnInterval = Math.max(0.38, 0.85 - score * 0.004);
+
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0;
+    spawnItem();
+  }
+
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    item.y += item.speed * dt;
+
+    const dx = item.x - dog.x;
+    const dy = item.y - dog.y;
+    const caught = Math.hypot(dx, dy) < 37;
+
+    if (caught) {
+      if (item.type === "bone") {
+        score += 1;
+        scoreEl.textContent = score;
+        message.textContent = "آفرین! یک استخوان دیگه! 🦴";
+      } else {
+        lives -= 1;
+        livesEl.textContent = lives;
+        message.textContent = "اوه! از بمب‌ها دوری کن! 💥";
+      }
+
+      items.splice(i, 1);
+
+      if (lives <= 0) {
+        endGame();
+        return;
+      }
+    } else if (item.y > H + 30) {
+      items.splice(i, 1);
+    }
+  }
+}
+
+function frame(time) {
+  if (!running) return;
+
+  if (!lastTime) lastTime = time;
+  const dt = Math.min((time - lastTime) / 1000, 0.035);
+  lastTime = time;
+
+  update(dt);
+  drawScene();
+
+  if (running) {
+    animationId = requestAnimationFrame(frame);
+  }
+}
+
+function endGame() {
+  running = false;
+  cancelAnimationFrame(animationId);
+
+  if (score > best) {
+    best = score;
+    bestEl.textContent = best;
+    try {
+      localStorage.setItem("dogGameBest", String(best));
+    } catch {}
+  }
+
+  drawScene();
+
+  ctx.fillStyle = "#58351e";
+  ctx.textAlign = "center";
+  ctx.font = "bold 27px Tahoma";
+  ctx.fillText("پایان بازی! 🐾", W / 2, H / 2 - 10);
+  ctx.font = "17px Tahoma";
+  ctx.fillText("امتیاز تو: " + score, W / 2, H / 2 + 27);
+
+  message.textContent = "دوباره بازی کن و رکوردت رو بشکن!";
+  startBtn.textContent = "بازی دوباره 🔄";
+}
+
+function startGame() {
+  cancelAnimationFrame(animationId);
+  keys.left = false;
+  keys.right = false;
+  reset();
+  running = true;
+  startBtn.textContent = "بازی در حال اجراست 🎮";
+  message.textContent = "برو دنبال استخوان‌ها!";
+  drawScene();
+  animationId = requestAnimationFrame(frame);
+}
+
+startBtn.addEventListener("click", () => {
+  if (!running) startGame();
+});
+
+function setKey(key, value) {
+  if (key === "ArrowLeft" || key.toLowerCase() === "a") {
+    keys.left = value;
+    return true;
+  }
+
+  if (key === "ArrowRight" || key.toLowerCase() === "d") {
+    keys.right = value;
+    return true;
+  }
+
+  return false;
+}
+
+window.addEventListener("keydown", (event) => {
+  if (setKey(event.key, true)) event.preventDefault();
+});
+
+window.addEventListener("keyup", (event) => {
+  setKey(event.key, false);
+});
+
+window.addEventListener("blur", () => {
+  keys.left = false;
+  keys.right = false;
+});
+
+function bindButton(id, direction) {
+  const btn = document.getElementById(id);
+
+  btn.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    keys[direction] = true;
+    btn.setPointerCapture(event.pointerId);
+  });
+
+  function release(event) {
+    keys[direction] = false;
+  }
+
+  btn.addEventListener("pointerup", release);
+  btn.addEventListener("pointercancel", release);
+  btn.addEventListener("lostpointercapture", release);
+}
+
+bindButton("left", "left");
+bindButton("right", "right");
+
+reset();
+drawScene();
+</script>
+
+</body>
+</html>
