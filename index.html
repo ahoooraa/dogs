@@ -1,0 +1,277 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>دنیای سگ‌ها 🐶</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Tahoma, Arial, sans-serif;
+      background: #fff8ee;
+      color: #493522;
+    }
+
+    header {
+      background: #a96535;
+      color: white;
+      text-align: center;
+      padding: 30px 15px;
+    }
+
+    header h1 {
+      margin: 0 0 10px;
+      font-size: 32px;
+    }
+
+    nav {
+      background: #754323;
+      padding: 14px;
+      text-align: center;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      margin: 0 12px;
+    }
+
+    main {
+      max-width: 850px;
+      margin: 25px auto;
+      padding: 0 15px;
+    }
+
+    section {
+      background: white;
+      padding: 22px;
+      margin-bottom: 22px;
+      border-radius: 14px;
+      box-shadow: 0 3px 12px #00000010;
+    }
+
+    h2 {
+      color: #a96535;
+    }
+
+    label {
+      display: block;
+      margin-top: 14px;
+      font-weight: bold;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 12px;
+      margin-top: 7px;
+      border: 1px solid #ddc9b5;
+      border-radius: 8px;
+      font: inherit;
+      background: #fffdf9;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    button {
+      border: none;
+      background: #a96535;
+      color: white;
+      padding: 12px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font: inherit;
+      margin-top: 15px;
+    }
+
+    button:hover {
+      background: #754323;
+    }
+
+    .dog-card {
+      border: 1px solid #ead9c7;
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 14px;
+      overflow-wrap: anywhere;
+    }
+
+    .dog-card h3 {
+      margin-top: 0;
+      color: #754323;
+    }
+
+    .delete-btn {
+      background: #bd4141;
+      margin-right: 8px;
+    }
+
+    footer {
+      text-align: center;
+      background: #754323;
+      color: white;
+      padding: 20px;
+      margin-top: 35px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🐶 دنیای سگ‌ها</h1>
+    <p>یک جای دوست‌داشتنی برای ثبت اطلاعات دوست‌های پشمالو!</p>
+  </header>
+
+  <nav>
+    <a href="#about">درباره سایت</a>
+    <a href="#add">ثبت اطلاعات</a>
+    <a href="#list">فهرست سگ‌ها</a>
+  </nav>
+
+  <main>
+    <section id="about">
+      <h2>🐾 درباره سگ‌ها</h2>
+      <p>
+        سگ‌ها حیواناتی باهوش، وفادار و اجتماعی هستند.
+        در این سایت می‌توانیم اطلاعات نژادهای مختلف سگ،
+        سن، ویژگی‌ها و عادت‌های آن‌ها را ثبت کنیم.
+      </p>
+    </section>
+
+    <section id="add">
+      <h2>📝 ثبت اطلاعات یک سگ</h2>
+
+      <form id="dogForm">
+        <label for="name">نام سگ:</label>
+        <input id="name" required placeholder="مثلاً: برفی">
+
+        <label for="breed">نژاد سگ:</label>
+        <input id="breed" required placeholder="مثلاً: ژرمن شپرد">
+
+        <label for="age">سن سگ (سال):</label>
+        <input id="age" type="number" min="0" max="100"
+          required placeholder="مثلاً: 3">
+
+        <label for="gender">جنسیت:</label>
+        <select id="gender">
+          <option value="مشخص نشده">مشخص نشده</option>
+          <option value="نر">نر</option>
+          <option value="ماده">ماده</option>
+        </select>
+
+        <label for="description">توضیحات و ویژگی‌ها:</label>
+        <textarea id="description"
+          placeholder="ویژگی‌ها، غذا، عادت‌ها و اطلاعات دیگر..."></textarea>
+
+        <button type="submit">ذخیره اطلاعات 🐾</button>
+      </form>
+    </section>
+
+    <section id="list">
+      <h2>🐕 فهرست سگ‌ها</h2>
+      <div id="dogList"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>ساخته شده با ❤️ برای دوستداران سگ‌ها</p>
+  </footer>
+
+  <script>
+    const form = document.getElementById("dogForm");
+    const dogList = document.getElementById("dogList");
+
+    let dogs = [];
+
+    try {
+      dogs = JSON.parse(
+        localStorage.getItem("myDogs") || "[]"
+      );
+      if (!Array.isArray(dogs)) dogs = [];
+    } catch {
+      dogs = [];
+    }
+
+    function saveDogs() {
+      try {
+        localStorage.setItem("myDogs", JSON.stringify(dogs));
+      } catch {
+        alert("ذخیره‌سازی ممکن نیست؛ فضای مرورگر را بررسی کن.");
+      }
+    }
+
+    function showDogs() {
+      dogList.replaceChildren();
+
+      if (dogs.length === 0) {
+        dogList.textContent = "هنوز اطلاعاتی ثبت نشده است.";
+        return;
+      }
+
+      dogs.forEach((dog, index) => {
+        const card = document.createElement("div");
+        card.className = "dog-card";
+
+        const title = document.createElement("h3");
+        title.textContent = "🐶 " + dog.name;
+
+        const details = document.createElement("p");
+        details.textContent =
+          "نژاد: " + dog.breed +
+          " | سن: " + dog.age + " سال" +
+          " | جنسیت: " + dog.gender;
+
+        const description = document.createElement("p");
+        description.textContent =
+          "توضیحات: " + (dog.description || "ندارد");
+
+        const deleteButton = document.createElement("button");
+        deleteButton.textContent = "حذف اطلاعات";
+        deleteButton.className = "delete-btn";
+        deleteButton.type = "button";
+
+        deleteButton.addEventListener("click", () => {
+          if (confirm("آیا می‌خواهی این اطلاعات حذف شود؟")) {
+            dogs.splice(index, 1);
+            saveDogs();
+            showDogs();
+          }
+        });
+
+        card.append(title, details, description, deleteButton);
+        dogList.appendChild(card);
+      });
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const dog = {
+        name: document.getElementById("name").value.trim(),
+        breed: document.getElementById("breed").value.trim(),
+        age: document.getElementById("age").value,
+        gender: document.getElementById("gender").value,
+        description:
+          document.getElementById("description").value.trim()
+      };
+
+      dogs.push(dog);
+      saveDogs();
+      showDogs();
+      form.reset();
+
+      alert("اطلاعات سگ با موفقیت ثبت شد! 🐶");
+    });
+
+    showDogs();
+  </script>
+</body>
+</html>
