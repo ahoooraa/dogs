@@ -296,14 +296,14 @@
     form.addEventListener("submit", (event) => {
       event.preventDefault();
 
-      const dog = {
+      const dog = {       document.getElementById("description").value.trim()
+  
         name: document.getElementById("name").value.trim(),
         breed: document.getElementById("breed").value.trim(),
         age: document.getElementById("age").value,
         gender: document.getElementById("gender").value,
         description:
-          document.getElementById("description").value.trim()
-      };
+       };
 
       dogs.push(dog);
       saveDogs();
