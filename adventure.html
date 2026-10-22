@@ -1,0 +1,293 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#151d40">
+<title>مأموریت نجات سگ‌ها | دنیای سگ با کمک</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#151d40;color:white;font-family:Tahoma,Arial,sans-serif;text-align:center}
+header{padding:18px 10px;background:#202d58}
+h1{margin:0 0 8px;font-size:25px}
+p{line-height:1.8}
+a{color:#ffe29b}
+.game{width:min(96%,900px);margin:16px auto}
+.hud{display:flex;justify-content:space-around;gap:8px;flex-wrap:wrap;margin:12px 0;font-weight:bold}
+canvas{display:block;width:100%;height:auto;border:3px solid #6578b8;border-radius:15px;background:#9be7ff;touch-action:none}
+button{font:inherit;border:0;border-radius:12px;padding:12px 18px;font-weight:bold;cursor:pointer;touch-action:none}
+#start{background:#ffd15c;color:#382b15;margin:12px}
+.controls{display:flex;direction:ltr;justify-content:center;gap:14px;margin:8px}
+.controls button{width:85px;height:60px;background:#354779;color:white;font-size:24px}
+.controls .jump{background:#ed7a4d;width:110px}
+.help{font-size:13px;color:#d5defe}
+</style>
+</head>
+<body>
+<header>
+<h1>🐶 مأموریت نجات سگ‌ها</h1>
+<p>بپر، استخوان جمع کن و توله‌سگ‌ها رو نجات بده! 🐾</p>
+</header>
+
+<div class="game">
+<div class="hud">
+<span>🦴 امتیاز: <b id="score">0</b></span>
+<span>🐶 نجات‌یافته: <b id="saved">0</b></span>
+<span>❤️ جان: <b id="lives">3</b></span>
+<span>🌍 مرحله: <b id="level">1</b></span>
+</div>
+
+<canvas id="c" width="800" height="420"></canvas>
+<div id="msg">برای شروع، روی دکمه بازی کن بزن!</div>
+<button id="start">🚀 شروع مأموریت</button>
+
+<div class="controls">
+<button id="left" aria-label="چپ">⬅️</button>
+<button id="right" aria-label="راست">➡️</button>
+<button class="jump" id="jump" aria-label="پرش">پرش ⬆️</button>
+</div>
+<p class="help">کامپیوتر: ← → و Space برای پرش<br>موبایل: دکمه‌های پایین صفحه رو لمس کن.</p>
+<a href="./">🏠 بازگشت به دنیای سگ‌ها</a>
+</div>
+
+<script>
+const c=document.getElementById("c"),ctx=c.getContext("2d");
+const $=id=>document.getElementById(id);
+const W=800,H=420;
+let player,platforms,bones,puppies,spikes;
+let score=0,saved=0,lives=3,level=1,camera=0;
+let running=false,ended=false,last=0,raf=0;
+let jumpRequest=false;
+const keys={left:false,right:false};
+let best=0;
+try{best=Number(localStorage.getItem("dogRescueBest"))||0}catch{}
+
+function makeLevel(){
+  const length=2100+(level-1)*400;
+  platforms=[{x:0,y:360,w:340,h:60},{x:410,y:330,w:240,h:90}];
+  let x=700;
+  while(x<length-220){
+    const gap=45+Math.random()*35;
+    const w=130+Math.random()*120;
+    const y=285+Math.random()*65;
+    platforms.push({x,y,w,h:H-y});
+    x+=w+gap;
+  }
+  platforms.push({x:length-100,y:350,w:350,h:70});
+  bones=[];
+  puppies=[];
+  spikes=[];
+  for(let i=0;i<platforms.length-1;i++){
+    const p=platforms[i];
+    if(i>0&&Math.random()<0.58)
+      bones.push({x:p.x+p.w/2,y:p.y-30,taken:false});
+    if(i>1&&Math.random()<0.28)
+      puppies.push({x:p.x+p.w/2,y:p.y-29,saved:false});
+    if(i>1&&Math.random()<0.35&&p.w>165)
+      spikes.push({x:p.x+p.w*0.65,y:p.y-20,w:30,h:20});
+  }
+  bones.push({x:length-60,y:310,taken:false});
+  puppies.push({x:length-45,y:310,saved:false});
+  return length;
+}
+
+let worldLength=0;
+function start(){
+  cancelAnimationFrame(raf);
+  score=0;saved=0;lives=3;level=1;camera=0;
+  keys.left=keys.right=false;jumpRequest=false;
+  player={x:55,y:250,w:34,h:38,vx:0,vy:0,ground:false,inv:0};
+  worldLength=makeLevel();
+  running=true;ended=false;last=0;
+  $("start").textContent="بازی در حال اجراست 🎮";
+  $("msg").textContent="توله‌سگ‌ها رو نجات بده!";
+  updateHud();draw();
+  raf=requestAnimationFrame(loop);
+}
+function updateHud(){
+  $("score").textContent=score;
+  $("saved").textContent=saved;
+  $("lives").textContent=lives;
+  $("level").textContent=level;
+}
+function rectHit(a,b){
+ return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+}
+function update(dt){
+ const speed=235;
+ player.vx=(keys.right?1:0)-(keys.left?1:0);
+ player.x+=player.vx*speed*dt;
+ player.x=Math.max(0,Math.min(worldLength-player.w,player.x));
+
+ if(jumpRequest&&player.ground){
+   player.vy=-510;player.ground=false;
+ }
+ jumpRequest=false;
+
+ player.vy+=1250*dt;
+ player.y+=player.vy*dt;
+ player.ground=false;
+
+ for(const p of platforms){
+   const oldBottom=player.y+player.h-player.vy*dt;
+   if(player.x+player.w>p.x&&player.x<p.x+p.w&&
+      oldBottom<=p.y+5&&player.y+player.h>=p.y&&player.vy>=0){
+     player.y=p.y-player.h;
+     player.vy=0;
+     player.ground=true;
+   }
+ }
+ if(player.inv>0)player.inv-=dt;
+
+ for(const b of bones){
+   if(!b.taken&&rectHit(player,{x:b.x-12,y:b.y-12,w:24,h:24})){
+     b.taken=true;score+=10;
+     $("msg").textContent="عالیه! استخوان پیدا کردی 🦴";
+   }
+ }
+ for(const p of puppies){
+   if(!p.saved&&rectHit(player,{x:p.x-14,y:p.y-25,w:28,h:30})){
+     p.saved=true;saved++;score+=50;
+     $("msg").textContent="یک توله‌سگ رو نجات دادی! 🐶❤️";
+   }
+ }
+ for(const s of spikes){
+   if(player.inv<=0&&rectHit(player,{x:s.x,y:s.y+5,w:s.w,h:s.h})){
+     hurt();
+   }
+ }
+ if(player.y>H+100)hurt();
+
+ if(player.x>worldLength-65){
+   level++;
+   if(level>3){win();return}
+   worldLength=makeLevel();
+   player.x=35;player.y=230;player.vy=0;
+   camera=0;
+   $("msg").textContent="مرحله "+level+" شروع شد! 🌟";
+ }
+ updateHud();
+}
+function hurt(){
+ if(player.inv>0)return;
+ lives--;player.inv=1.5;
+ player.vy=-320;
+ if(lives<=0){finish(false);return}
+ $("msg").textContent="مراقب باش! یک جان کم شد ❤️";
+ updateHud();
+}
+function finish(won){
+ running=false;ended=true;
+ cancelAnimationFrame(raf);
+ let record=false;
+ try{
+   const old=Number(localStorage.getItem("dogRescueBest"))||0;
+   if(score>old){localStorage.setItem("dogRescueBest",score);record=true}
+ }catch{}
+ draw();
+ ctx.fillStyle="#111a3ddd";ctx.fillRect(140,115,520,175);
+ ctx.textAlign="center";ctx.fillStyle="white";
+ ctx.font="bold 30px Tahoma";
+ ctx.fillText(won?"🏆 قهرمان نجات سگ‌ها!":"بازی تموم شد!",400,165);
+ ctx.font="20px Tahoma";
+ ctx.fillText("امتیاز: "+score+" | نجات: "+saved,400,210);
+ ctx.font="16px Tahoma";
+ ctx.fillText(record?"🎉 رکورد جدید!":"برای تلاش دوباره آماده شو!",400,250);
+ $("msg").textContent=won?"آفرین! همه مراحل رو تموم کردی!":"دوباره تلاش کن و سگ‌ها رو نجات بده!";
+ $("start").textContent="🔄 بازی دوباره";
+}
+function win(){finish(true)}
+function loop(t){
+ if(!running)return;
+ if(!last)last=t;
+ const dt=Math.min((t-last)/1000,0.03);last=t;
+ update(dt);
+ if(!running)return;
+ camera=Math.max(0,Math.min(worldLength-W,player.x-W*0.34));
+ draw();
+ raf=requestAnimationFrame(loop);
+}
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ const sky=ctx.createLinearGradient(0,0,0,H);
+ sky.addColorStop(0,"#78d7ff");sky.addColorStop(1,"#e0f9ff");
+ ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+
+ // ابرها
+ ctx.fillStyle="#ffffffbb";
+ for(let i=0;i<7;i++){
+   const x=((i*155-camera*.18)%(W+100)+W+100)%(W+100)-40;
+   ctx.beginPath();ctx.arc(x,70+i%3*28,18,0,Math.PI*2);
+   ctx.arc(x+20,62+i%3*28,23,0,Math.PI*2);
+   ctx.arc(x+43,72+i%3*28,17,0,Math.PI*2);ctx.fill();
+ }
+ // سکوها
+ for(const p of platforms){
+   const x=p.x-camera;
+   if(x+p.w<0||x>W)continue;
+   ctx.fillStyle="#7b4b2a";ctx.fillRect(x,p.y,p.w,p.h);
+   ctx.fillStyle="#57b94f";ctx.fillRect(x,p.y,p.w,9);
+   ctx.fillStyle="#a86d40";
+   for(let k=12;k<p.w;k+=35)ctx.fillRect(x+k,p.y+20,16,5);
+ }
+ // استخوان‌ها
+ for(const b of bones)if(!b.taken){
+   const x=b.x-camera;if(x<-30||x>W+30)continue;
+   ctx.font="25px sans-serif";ctx.textAlign="center";
+   ctx.fillText("🦴",x,b.y);
+ }
+ // توله‌سگ‌ها
+ for(const p of puppies)if(!p.saved){
+   const x=p.x-camera;if(x<-30||x>W+30)continue;
+   ctx.font="27px sans-serif";ctx.textAlign="center";
+   ctx.fillText("🐕",x,p.y);
+ }
+ // تله‌ها
+ for(const s of spikes){
+   const x=s.x-camera;
+   ctx.fillStyle="#e94e61";
+   ctx.beginPath();ctx.moveTo(x,s.y+s.h);ctx.lineTo(x+s.w/2,s.y);
+   ctx.lineTo(x+s.w,s.y+s.h);ctx.fill();
+ }
+ // قهرمان
+ if(player&&!(player.inv>0&&Math.floor(performance.now()/100)%2)){
+   ctx.font="36px sans-serif";ctx.textAlign="center";
+   ctx.fillText(player.vx<0?"🐕‍🦺":"🐕",player.x-camera+player.w/2,player.y+player.h-3);
+ }
+ // خط پایان
+ const fx=worldLength-45-camera;
+ if(fx>-30&&fx<W+30){
+   ctx.fillStyle="#fff";ctx.fillRect(fx,245,5,110);
+   ctx.fillStyle="#ffcf49";ctx.font="25px sans-serif";
+   ctx.fillText("🏁",fx,240);
+ }
+}
+function bind(id,key){
+ const el=$(id);
+ el.addEventListener("pointerdown",e=>{
+   e.preventDefault();el.setPointerCapture(e.pointerId);
+   if(key==="jump")jumpRequest=true;else keys[key]=true;
+ });
+ const up=()=>{if(key!=="jump")keys[key]=false};
+ el.addEventListener("pointerup",up);
+ el.addEventListener("pointercancel",up);
+ el.addEventListener("lostpointercapture",up);
+}
+bind("left","left");bind("right","right");bind("jump","jump");
+window.addEventListener("keydown",e=>{
+ if(["ArrowLeft","ArrowRight"," ","ArrowUp"].includes(e.key))e.preventDefault();
+ if(e.key==="ArrowLeft"||e.key.toLowerCase()==="a")keys.left=true;
+ if(e.key==="ArrowRight"||e.key.toLowerCase()==="d")keys.right=true;
+ if(e.key===" "||e.key==="ArrowUp"||e.key.toLowerCase()==="w")jumpRequest=true;
+});
+window.addEventListener("keyup",e=>{
+ if(e.key==="ArrowLeft"||e.key.toLowerCase()==="a")keys.left=false;
+ if(e.key==="ArrowRight"||e.key.toLowerCase()==="d")keys.right=false;
+});
+window.addEventListener("blur",()=>{keys.left=keys.right=false});
+$("start").addEventListener("click",start);
+draw();
+</script>
+</body>
+</html>
